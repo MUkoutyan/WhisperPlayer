@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<JUCERPROJECT id="s7MO5P" name="WhisperPlayer" projectType="guiapp" jucerVersion="5.4.7"
+              cppLanguageStandard="17">
+  <MAINGROUP id="TO2GXI" name="WhisperPlayer">
+    <GROUP id="{AFFC1C83-D0B7-52FD-BC2F-79A1ACFEFCCA}" name="Source">
+      <FILE id="g7iFWw" name="FileTableLookAndFeel.h" compile="0" resource="0"
+            file="Source/FileTableLookAndFeel.h"/>
+      <GROUP id="{E725C317-F484-68B3-F6D0-2EF45FF8B6DF}" name="Resource">
+        <FILE id="RM75nS" name="arrow-right.png" compile="0" resource="1" file="Source/Resource/arrow-right.png"/>
+        <FILE id="hg0tgN" name="arrow-left.png" compile="0" resource="1" file="Source/Resource/arrow-left.png"/>
+        <FILE id="mxEP2b" name="settings.png" compile="0" resource="1" file="Source/Resource/settings.png"/>
+        <FILE id="VsvwH9" name="folder-upload-fill.png" compile="0" resource="1"
+              file="Source/Resource/folder-upload-fill.png"/>
+        <FILE id="R5p1Zq" name="pause-fill.png" compile="0" resource="1" file="Source/Resource/pause-fill.png"/>
+        <FILE id="caa6pt" name="play-fill.png" compile="0" resource="1" file="Source/Resource/play-fill.png"/>
+        <FILE id="NWSSAP" name="rewind-fill.png" compile="0" resource="1" file="Source/Resource/rewind-fill.png"/>
+        <FILE id="RUKYWr" name="speed-fill.png" compile="0" resource="1" file="Source/Resource/speed-fill.png"/>
+        <FILE id="ZtbrfX" name="stop-fill.png" compile="0" resource="1" file="Source/Resource/stop-fill.png"/>
+        <FILE id="QRSOnL" name="volume-down-fill.png" compile="0" resource="1"
+              file="Source/Resource/volume-down-fill.png"/>
+        <FILE id="EGx8gs" name="volume-mute-fill.png" compile="0" resource="1"
+              file="Source/Resource/volume-mute-fill.png"/>
+        <FILE id="d8uVrK" name="volume-up-fill.png" compile="0" resource="1"
+              file="Source/Resource/volume-up-fill.png"/>
+      </GROUP>
+      <FILE id="jjlkGi" name="AudioSettings.h" compile="0" resource="0" file="Source/AudioSettings.h"/>
+      <FILE id="ylQXSN" name="WPAudioSource.hpp" compile="0" resource="0"
+            file="Source/WPAudioSource.hpp"/>
+      <FILE id="qelevX" name="DrawWav.hpp" compile="0" resource="0" file="Source/DrawWav.hpp"/>
+      <FILE id="FDMlTp" name="MainComponent.h" compile="0" resource="0" file="Source/MainComponent.h"/>
+      <FILE id="r0JTxY" name="MainComponent.cpp" compile="1" resource="0"
+            file="Source/MainComponent.cpp"/>
+      <FILE id="X0QF4U" name="Main.cpp" compile="1" resource="0" file="Source/Main.cpp"/>
+      <FILE id="ro1fs1" name="FolderHistory.hpp" compile="0" resource="0"
+            file="Source/FolderHistory.hpp"/>
+      <FILE id="CYku09" name="ThumbnailComponent.hpp" compile="0" resource="0"
+            file="Source/ThumbnailComponent.hpp"/>
+    </GROUP>
+  </MAINGROUP>
+  <EXPORTFORMATS>
+    <VS2019 targetFolder="Builds/VisualStudio2019">
+      <CONFIGURATIONS>
+        <CONFIGURATION isDebug="1" name="Debug"/>
+        <CONFIGURATION isDebug="0" name="Release"/>
+      </CONFIGURATIONS>
+      <MODULEPATHS>
+        <MODULEPATH id="juce_audio_basics" path="G:/Library/JUCE/modules"/>
+        <MODULEPATH id="juce_audio_devices" path="G:/Library/JUCE/modules"/>
+        <MODULEPATH id="juce_audio_formats" path="G:/Library/JUCE/modules"/>
+        <MODULEPATH id="juce_audio_processors" path="G:/Library/JUCE/modules"/>
+        <MODULEPATH id="juce_core" path="G:/Library/JUCE/modules"/>
+        <MODULEPATH id="juce_cryptography" path="G:/Library/JUCE/modules"/>
+        <MODULEPATH id="juce_data_structures" path="G:/Library/JUCE/modules"/>
+        <MODULEPATH id="juce_events" path="G:/Library/JUCE/modules"/>
+        <MODULEPATH id="juce_graphics" path="G:/Library/JUCE/modules"/>
+        <MODULEPATH id="juce_gui_basics" path="G:/Library/JUCE/modules"/>
+        <MODULEPATH id="juce_gui_extra" path="G:/Library/JUCE/modules"/>
+        <MODULEPATH id="juce_opengl" path="G:/Library/JUCE/modules"/>
+        <MODULEPATH id="juce_audio_utils" path="G:/Library/JUCE/modules"/>
+      </MODULEPATHS>
+    </VS2019>
+  </EXPORTFORMATS>
+  <MODULES>
+    <MODULE id="juce_audio_basics" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+    <MODULE id="juce_audio_devices" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+    <MODULE id="juce_audio_formats" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+    <MODULE id="juce_audio_processors" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+    <MODULE id="juce_audio_utils" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+    <MODULE id="juce_core" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+    <MODULE id="juce_cryptography" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+    <MODULE id="juce_data_structures" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+    <MODULE id="juce_events" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+    <MODULE id="juce_graphics" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+    <MODULE id="juce_gui_basics" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+    <MODULE id="juce_gui_extra" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+    <MODULE id="juce_opengl" showAllCode="1" useLocalCopy="0" useGlobalPath="1"/>
+  </MODULES>
+  <LIVE_SETTINGS>
+    <WINDOWS/>
+  </LIVE_SETTINGS>
+  <JUCEOPTIONS JUCE_STRICT_REFCOUNTEDPOINTER="1" JUCE_USE_MP3AUDIOFORMAT="1"/>
+</JUCERPROJECT>
