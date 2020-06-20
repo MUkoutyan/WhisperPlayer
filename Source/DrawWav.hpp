@@ -9,10 +9,10 @@
 
 //==============================================================================
 class DrawWav : public Component,
-    public Slider::Listener,
-    public FileDragAndDropTarget,
-    private FileBrowserListener,
-    private ChangeListener
+      public Slider::Listener,
+      public FileDragAndDropTarget,
+      private FileBrowserListener,
+      private ChangeListener
 {
     void ConvertReverseColor(Image& image)
     {
@@ -22,7 +22,7 @@ class DrawWav : public Component,
             for (int x = 0; x < bounds.getWidth(); ++x)
             {
                 constexpr auto maxValue = std::numeric_limits<std::uint8_t>::max();
-                auto color = image.getPixelAt(x, y);
+                auto color    = image.getPixelAt(x, y);
                 auto newColor = Colour().fromRGBA(maxValue - color.getRed(), maxValue - color.getGreen(), maxValue - color.getBlue(), color.getAlpha());
                 image.setPixelAt(x, y, newColor);
             }
@@ -30,9 +30,12 @@ class DrawWav : public Component,
     }
 
 public:
-    DrawWav() : volumeSlider(Slider::LinearHorizontal, Slider::NoTextBox)
+    DrawWav()
+        : audioSourcePlayer()    //createAudioDeviceManagerでポインタを使用するため、audioDeviceManagerより前に初期化
+        , audioDeviceManager(createAudioDeviceManager())
+        , volumeSlider(Slider::LinearHorizontal, Slider::NoTextBox)
         , currentAudioFileIndex(-1)
-        , settingComponent(audioDeviceManager, 2, 2, 2, 2, false, false, true, true)
+        , settingComponent(*audioDeviceManager, 2, 2, 2, 2, false, false, true, true)
     {
 #if JUCE_WINDOWS
         String typeFaceName = "Yu Gothic UI";
@@ -90,13 +93,11 @@ public:
             DialogWindow::showModalDialog("Audio Settings", &this->settingComponent, nullptr, Colours::black, true);
         };
 
-
+        fileTreeComp.setColour(FileTreeComponent::backgroundColourId, Colours::black);
+        fileTreeComp.addListener(this);
         addAndMakeVisible(fileTreeComp);
 
         setDirectory(File::getSpecialLocation(File::userDocumentsDirectory));
-
-        fileTreeComp.setColour(FileTreeComponent::backgroundColourId, Colours::black.withAlpha(0.6f));
-        fileTreeComp.addListener(this);
 
         thumbnail.reset(new ThumbnailComponent(formatManager, transportSource));
         addAndMakeVisible(thumbnail.get());
@@ -106,11 +107,11 @@ public:
         currentPlayPosition.setColour(Label::textColourId, Colours::white);
         currentPlayPosition.setText("", dontSendNotification);
 
-        AddButton(prevButton, BinaryData::rewindfill_png, BinaryData::rewindfill_pngSize);
-        AddButton(playButton, BinaryData::playfill_png, BinaryData::playfill_pngSize);
+        AddButton(prevButton , BinaryData::rewindfill_png, BinaryData::rewindfill_pngSize);
+        AddButton(playButton , BinaryData::playfill_png, BinaryData::playfill_pngSize);
         AddButton(pauseButton, BinaryData::pausefill_png, BinaryData::pausefill_pngSize);
-        AddButton(stopButton, BinaryData::stopfill_png, BinaryData::stopfill_pngSize);
-        AddButton(nextButton, BinaryData::speedfill_png, BinaryData::speedfill_pngSize);
+        AddButton(stopButton , BinaryData::stopfill_png, BinaryData::stopfill_pngSize);
+        AddButton(nextButton , BinaryData::speedfill_png, BinaryData::speedfill_pngSize);
 
         pauseButton.setVisible(false);
 
@@ -178,26 +179,17 @@ public:
             this->transportSource.EnableSwapLR(isSwapLR.getToggleState());
         };
 
-        // audio setup
+        //拡張子によるフィルターであるため、registerBasicFormatsでフォーマットを登録してからAudioFileFilterを作成する。
         formatManager.registerBasicFormats();
-
         audioFileFilter.reset(new AudioFileFilter(formatManager.getWildcardForAllFormats()));
         directoryList.setFileFilter(this->audioFileFilter.get());
 
         thread.startThread(3);
 
-        RuntimePermissions::request(RuntimePermissions::recordAudio,
-            [this](bool granted)
-            {
-                int numInputChannels = granted ? 2 : 0;
-                audioDeviceManager.initialise(numInputChannels, 2, nullptr, true, {}, nullptr);
-            });
-
-        audioDeviceManager.addAudioCallback(&audioSourcePlayer);
         audioSourcePlayer.setSource(&transportSource);
 
         setOpaque(true);
-        setSize(500, 420);
+        setSize(500, 420);  //setSizeは一番最後に呼び出す
     }
 
     ~DrawWav() override
@@ -205,7 +197,7 @@ public:
         transportSource.setSource(nullptr);
         audioSourcePlayer.setSource(nullptr);
 
-        audioDeviceManager.removeAudioCallback(&audioSourcePlayer);
+        audioDeviceManager->removeAudioCallback(&audioSourcePlayer);
 
         fileTreeComp.removeListener(this);
 
@@ -224,7 +216,7 @@ public:
     {
         auto r = getLocalBounds().reduced(4);
 
-        settingComponent.centreWithSize(r.getWidth(), r.getHeight());
+        settingComponent.centreWithSize(r.getWidth()-32, r.getHeight());
 
         auto fileBrowserArea = r.removeFromTop(24);
         prevDirButton.setBounds(fileBrowserArea.removeFromLeft(32));
@@ -249,6 +241,7 @@ public:
         stopButton.setBounds(controls.removeFromLeft(buttonSize));
         nextButton.setBounds(controls.removeFromLeft(buttonSize));
 
+        controls.setWidth(jmin(controls.getWidth(), 200));
         volumeSlider.setBounds(controls);
 
         thumbnail->setBounds(r.removeFromBottom(120));
@@ -258,8 +251,8 @@ public:
     }
 
 private:
-    // if this PIP is running inside the demo runner, we'll use the shared device manager instead
-    AudioDeviceManager audioDeviceManager;
+    AudioSourcePlayer audioSourcePlayer;
+    std::unique_ptr<AudioDeviceManager> audioDeviceManager;
 
     AudioFormatManager formatManager;
     TimeSliceThread thread{ "audio file preview" };
@@ -291,11 +284,11 @@ private:
     int currentAudioFileIndex;
     Array<URL> audioFileList;
     URL currentAudioFile;
-    AudioSourcePlayer audioSourcePlayer;
     WPAudioSource transportSource;
     std::unique_ptr<AudioFormatReaderSource> currentAudioFileSource;
 
     std::unique_ptr<ThumbnailComponent> thumbnail;
+
 
     class AudioFileFilter : public FileFilter
     {
@@ -318,8 +311,17 @@ private:
     };
     std::unique_ptr<AudioFileFilter> audioFileFilter;
 
+    std::unique_ptr<AudioDeviceManager> createAudioDeviceManager()
+    {
+        auto deviceManager = std::make_unique<AudioDeviceManager>();
+        //Inputは使用しないので0
+        deviceManager->initialise(0, 2, nullptr, true);
+        deviceManager->addAudioCallback(&audioSourcePlayer);
+        return deviceManager;
+    }
+
     //==============================================================================
-    void setDirectory(File dir)
+    void setDirectory(const File& dir)
     {
         auto path = dir.getFullPathName();
         if (folderHistory.CurrentIndicateDirectory() != path) {
@@ -333,16 +335,16 @@ private:
 
     void showAudioResource(URL resource)
     {
-        if (loadURLIntoTransport(resource))
+        if(loadURLIntoTransport(resource)){
             currentAudioFile = std::move(resource);
+        }
 
         thumbnail->setURL(currentAudioFile);
     }
 
     bool loadURLIntoTransport(const URL& audioURL)
     {
-        // unload the previous file source and delete it..
-        bool isPlaying = transportSource.isPlaying();
+        const bool isPlaying = transportSource.isPlaying();
         stop();
         transportSource.setSource(nullptr);
         currentAudioFileSource.reset();
@@ -351,7 +353,6 @@ private:
         {
             currentAudioFileSource.reset(new AudioFormatReaderSource(reader, true));
 
-            // ..and plug it into our transport source
             isSwapLR.setEnabled(reader->numChannels >= 2);
             transportSource.setSource(currentAudioFileSource.get(),
                 32768,                   // tells it to buffer this many samples ahead
@@ -451,8 +452,8 @@ private:
             setDirectory(file.getParentDirectory());
             showAudioResource(URL(file));
         }
-
     }
+
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(DrawWav)
 };
