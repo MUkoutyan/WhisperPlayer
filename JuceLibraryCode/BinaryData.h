@@ -8,6 +8,15 @@
 
 namespace BinaryData
 {
+    extern const char*   restart_none_png;
+    const int            restart_none_pngSize = 1998;
+
+    extern const char*   restart_all_png;
+    const int            restart_all_pngSize = 1209;
+
+    extern const char*   restart_one_png;
+    const int            restart_one_pngSize = 1299;
+
     extern const char*   arrowright_png;
     const int            arrowright_pngSize = 1007;
 
@@ -45,7 +54,7 @@ namespace BinaryData
     const int            volumeupfill_pngSize = 1060;
 
     // Number of elements in the namedResourceList and originalFileNames arrays.
-    const int namedResourceListSize = 12;
+    const int namedResourceListSize = 15;
 
     // Points to the start of a list of resource names.
     extern const char* namedResourceList[];

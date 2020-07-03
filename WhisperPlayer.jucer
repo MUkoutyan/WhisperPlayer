@@ -1,12 +1,16 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
 <JUCERPROJECT id="s7MO5P" name="WhisperPlayer" projectType="guiapp" jucerVersion="5.4.7"
-              cppLanguageStandard="17">
+              cppLanguageStandard="17" displaySplashScreen="1">
   <MAINGROUP id="TO2GXI" name="WhisperPlayer">
     <GROUP id="{AFFC1C83-D0B7-52FD-BC2F-79A1ACFEFCCA}" name="Source">
-      <FILE id="g7iFWw" name="FileTableLookAndFeel.h" compile="0" resource="0"
-            file="Source/FileTableLookAndFeel.h"/>
+      <FILE id="tl1cCl" name="StateImageButton.h" compile="0" resource="0"
+            file="Source/StateImageButton.h"/>
       <GROUP id="{E725C317-F484-68B3-F6D0-2EF45FF8B6DF}" name="Resource">
+        <FILE id="QlhKj9" name="restart_none.png" compile="0" resource="1"
+              file="Source/Resource/restart_none.png"/>
+        <FILE id="Zh47A4" name="restart_all.png" compile="0" resource="1" file="Source/Resource/restart_all.png"/>
+        <FILE id="aO0QBt" name="restart_one.png" compile="0" resource="1" file="Source/Resource/restart_one.png"/>
         <FILE id="RM75nS" name="arrow-right.png" compile="0" resource="1" file="Source/Resource/arrow-right.png"/>
         <FILE id="hg0tgN" name="arrow-left.png" compile="0" resource="1" file="Source/Resource/arrow-left.png"/>
         <FILE id="mxEP2b" name="settings.png" compile="0" resource="1" file="Source/Resource/settings.png"/>
@@ -27,10 +31,7 @@
       <FILE id="jjlkGi" name="AudioSettings.h" compile="0" resource="0" file="Source/AudioSettings.h"/>
       <FILE id="ylQXSN" name="WPAudioSource.hpp" compile="0" resource="0"
             file="Source/WPAudioSource.hpp"/>
-      <FILE id="qelevX" name="DrawWav.hpp" compile="0" resource="0" file="Source/DrawWav.hpp"/>
-      <FILE id="FDMlTp" name="MainComponent.h" compile="0" resource="0" file="Source/MainComponent.h"/>
-      <FILE id="r0JTxY" name="MainComponent.cpp" compile="1" resource="0"
-            file="Source/MainComponent.cpp"/>
+      <FILE id="qelevX" name="DrawUI.hpp" compile="0" resource="0" file="Source/DrawUI.hpp"/>
       <FILE id="X0QF4U" name="Main.cpp" compile="1" resource="0" file="Source/Main.cpp"/>
       <FILE id="ro1fs1" name="FolderHistory.hpp" compile="0" resource="0"
             file="Source/FolderHistory.hpp"/>
