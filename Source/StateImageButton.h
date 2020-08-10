@@ -1,4 +1,4 @@
-﻿/*
+/*
   ==============================================================================
 
 	StateImageButton.h
@@ -21,6 +21,12 @@ public:
 		, currentState(initState)
 	{
 		addListener(this);
+		attachCurrentStateImage();
+	}
+
+	void setCurrentState(std::uint32_t state)
+	{
+		this->currentState = state;
 		attachCurrentStateImage();
 	}
 

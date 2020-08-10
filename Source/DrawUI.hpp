@@ -6,6 +6,8 @@
 #include "FolderHistory.hpp"
 #include "AudioSettings.h"
 
+#include <stack>
+
 //==============================================================================
 
 //==============================================================================
@@ -61,21 +63,26 @@ class DrawUI : public Component,
 
 public:
 	DrawUI()
-		: audioSourcePlayer()    //createAudioDeviceManager内で使用するため、audioDeviceManagerよりも先に初期化する
+		: properties()
+		, audioSourcePlayer()    //createAudioDeviceManager内で使用するため、audioDeviceManagerよりも先に初期化する
 		, audioDeviceManager(createAudioDeviceManager())
+		, numHistorySize(16)
+		, directoryHistory()
 		, volumeSlider(Slider::LinearHorizontal, Slider::NoTextBox)
 		, currentAudioFileIndex(-1)
 		, settingComponent(*audioDeviceManager, 2, 2, 2, 2, false, false, true, true)
-		, loopState(LoopState::None)
 		, loopButton(
 			{
 			  GetImageFromMemory(BinaryData::restart_none_png, BinaryData::restart_none_pngSize),
 			  GetImageFromMemory(BinaryData::restart_one_png,  BinaryData::restart_one_pngSize),
 			  GetImageFromMemory(BinaryData::restart_all_png,  BinaryData::restart_all_pngSize)
 			},
-			static_cast<std::uint32_t>(loopState)
+			static_cast<std::uint32_t>(LoopState::None)
 		)
+		, isSuspendSaveProperty(true)	//プロパティのロードが終わるまで保存を禁止
 	{
+		setPropertiesOption(); 
+
 #if JUCE_WINDOWS
 		String typeFaceName = "Yu Gothic UI";
 		this->getLookAndFeel().setDefaultSansSerifTypefaceName(typeFaceName);
@@ -83,7 +90,27 @@ public:
 		String typeFaceName = "Arial Unicode MS";
 		this->getLookAndFeel().setDefaultSansSerifTypefaceName(typeFaceName);
 #endif
+		setupUIComponents();
 
+		//audioFileFilterはフォーマットを登録してから作成する。
+		formatManager.registerBasicFormats();
+		audioFileFilter.reset(new AudioFileFilter(formatManager.getWildcardForAllFormats()));
+		directoryList.setFileFilter(this->audioFileFilter.get());
+
+		thread.startThread(3);
+
+		audioSourcePlayer.setSource(&transportSource);
+
+		loadProperties();
+
+		startTimerHz(20); //再生状態監視用のタイマー
+
+		setOpaque(true);
+		setSize(500, 420);
+	}
+
+	void setupUIComponents()
+	{
 		AddButton(prevDirButton, BinaryData::arrowleft_png, BinaryData::arrowleft_pngSize);
 		prevDirButton.onClick = [this]() {
 			auto path = folderHistory.Prev();
@@ -117,17 +144,28 @@ public:
 			}
 		};
 
+		AddButton(showHistoryButton, BinaryData::arrowdownsfill_png, BinaryData::arrowdownsfill_pngSize);
+		showHistoryButton.onClick = [this]()
+		{
+			directoryHistoryMenu.clear();
+			for(const auto& str : directoryHistory){
+				directoryHistoryMenu.addItem(str, [this, &str](){ setDirectory(str); });
+			}
+
+			PopupMenu::Options options;
+			options.withTargetComponent(targetDirectory);
+			directoryHistoryMenu.showMenuAsync(options);
+		};
+
 		AddButton(settingButton, BinaryData::settings_png, BinaryData::settings_pngSize);
 		settingButton.onClick = [this]()
 		{
 			DialogWindow::showModalDialog("Audio Settings", &this->settingComponent, nullptr, Colours::black, true);
 		};
 
-		fileTreeComp.setColour(FileTreeComponent::backgroundColourId, Colours::black);
+		//fileTreeComp.setColour(FileTreeComponent::backgroundColourId, Colours::black);
 		fileTreeComp.addListener(this);
 		addAndMakeVisible(fileTreeComp);
-
-		setDirectory(File::getSpecialLocation(File::userDocumentsDirectory));
 
 		thumbnail.reset(new ThumbnailComponent(formatManager, transportSource));
 		addAndMakeVisible(thumbnail.get());
@@ -137,22 +175,22 @@ public:
 		currentPlayTimeText.setColour(Label::textColourId, Colours::white);
 		currentPlayTimeText.setText("", dontSendNotification);
 
-		AddButton(prevButton, BinaryData::rewindfill_png, BinaryData::rewindfill_pngSize);
-		AddButton(playButton, BinaryData::playfill_png, BinaryData::playfill_pngSize);
-		AddButton(pauseButton, BinaryData::pausefill_png, BinaryData::pausefill_pngSize);
-		AddButton(stopButton, BinaryData::stopfill_png, BinaryData::stopfill_pngSize);
-		AddButton(nextButton, BinaryData::speedfill_png, BinaryData::speedfill_pngSize);
+		AddButton(prevButton,  BinaryData::rewindfill_png, BinaryData::rewindfill_pngSize);
+		AddButton(playButton,  BinaryData::playfill_png,   BinaryData::playfill_pngSize);
+		AddButton(pauseButton, BinaryData::pausefill_png,  BinaryData::pausefill_pngSize);
+		AddButton(stopButton,  BinaryData::stopfill_png,   BinaryData::stopfill_pngSize);
+		AddButton(nextButton,  BinaryData::speedfill_png,  BinaryData::speedfill_pngSize);
 
 		addAndMakeVisible(loopButton);
 		loopButton.setSize(buttonSize, buttonSize);
 
 		pauseButton.setVisible(false);
 
-		playButton.onClick = std::bind(&DrawUI::play, this);
+		playButton.onClick  = std::bind(&DrawUI::play, this);
 		pauseButton.onClick = std::bind(&DrawUI::pause, this);
-		stopButton.onClick = std::bind(&DrawUI::stop, this);
-		prevButton.onClick = std::bind(&DrawUI::MoveToPrevAudio, this);
-		nextButton.onClick = std::bind(&DrawUI::MoveToNextAudio, this);
+		stopButton.onClick  = std::bind(&DrawUI::stop, this);
+		prevButton.onClick  = std::bind(&DrawUI::MoveToPrevAudio, this);
+		nextButton.onClick  = std::bind(&DrawUI::MoveToNextAudio, this);
 
 		addAndMakeVisible(volumeSlider);
 		volumeSlider.setRange(0.0, 1.0, 0.01);
@@ -165,24 +203,13 @@ public:
 		isSwapLR.onClick = [this]() {
 			this->transportSource.EnableSwapLR(isSwapLR.getToggleState());
 		};
-
-		//audioFileFilterはフォーマットを登録してから作成する。
-		formatManager.registerBasicFormats();
-		audioFileFilter.reset(new AudioFileFilter(formatManager.getWildcardForAllFormats()));
-		directoryList.setFileFilter(this->audioFileFilter.get());
-
-		thread.startThread(3);
-
-		audioSourcePlayer.setSource(&transportSource);
-
-		startTimerHz(20); //再生状態監視用のタイマー
-
-		setOpaque(true);
-		setSize(500, 420);
 	}
 
 	~DrawUI() override
 	{
+		stop();
+		saveProperties();
+
 		transportSource.setSource(nullptr);
 		audioSourcePlayer.setSource(nullptr);
 
@@ -212,6 +239,7 @@ public:
 		nextDirButton.setBounds(fileBrowserArea.removeFromLeft(buttonSize));
 		moveUpFolder.setBounds(fileBrowserArea.removeFromLeft(buttonSize));
 		settingButton.setBounds(fileBrowserArea.removeFromRight(buttonSize));
+		showHistoryButton.setBounds(fileBrowserArea.removeFromRight(buttonSize));
 		targetDirectory.setBounds(fileBrowserArea);
 
 		r.removeFromTop(4);
@@ -240,44 +268,46 @@ public:
 	}
 
 private:
+	ApplicationProperties properties;
+	PropertiesFile* propertiesFile;
 	AudioSourcePlayer audioSourcePlayer;
 	std::unique_ptr<AudioDeviceManager> audioDeviceManager;
+	std::unique_ptr<AudioFormatReaderSource> currentAudioFileSource;
+	AudioDeviceSelectorComponent settingComponent;
 
 	AudioFormatManager formatManager;
 	TimeSliceThread thread{ "audio file preview" };
 
 	FolderHistory folderHistory;
-
 	TextEditor targetDirectory;
+	PopupMenu  directoryHistoryMenu;
+	ImageButton showHistoryButton;
+	size_t numHistorySize;
+	StringArray directoryHistory;
 
 	ImageButton prevDirButton;
 	ImageButton nextDirButton;
 	ImageButton moveUpFolder;
 	DirectoryContentsList directoryList{ nullptr, thread };
 	FileListComponent fileTreeComp{ directoryList };
+	int currentAudioFileIndex;
+	Array<URL> audioFileList;
+	URL currentAudioFile;
+
 	ImageButton settingButton;
-	AudioDeviceSelectorComponent settingComponent;
 
+	WPAudioSource transportSource;
+
+	ToggleButton isSwapLR;
 	Label currentPlayTimeText;
-
 	ImageButton prevButton;
 	ImageButton playButton;
 	ImageButton pauseButton;
 	ImageButton stopButton;
 	ImageButton nextButton;
-
-	LoopState loopState;
 	StateImageButton loopButton;
-
 	Slider volumeSlider;
 
-	ToggleButton isSwapLR;
-
-	int currentAudioFileIndex;
-	Array<URL> audioFileList;
-	URL currentAudioFile;
-	WPAudioSource transportSource;
-	std::unique_ptr<AudioFormatReaderSource> currentAudioFileSource;
 
 	std::unique_ptr<ThumbnailComponent> thumbnail;
 
@@ -304,6 +334,7 @@ private:
 	};
 	std::unique_ptr<AudioFileFilter> audioFileFilter;
 
+	//=====================================================================================
 	std::unique_ptr<AudioDeviceManager> createAudioDeviceManager()
 	{
 		auto deviceManager = std::make_unique<AudioDeviceManager>();
@@ -312,6 +343,58 @@ private:
 		deviceManager->addAudioCallback(&audioSourcePlayer);
 		return deviceManager;
 	}
+
+	void setPropertiesOption()
+	{
+		PropertiesFile::Options options;
+		options.applicationName = ProjectInfo::projectName;
+		options.filenameSuffix  = ".settings";
+		options.folderName      = ProjectInfo::companyName;
+		properties.setStorageParameters(options);
+
+		propertiesFile = properties.getUserSettings();
+	}
+
+	void saveProperties()
+	{
+		if(isSuspendSaveProperty){ return; }
+		propertiesFile->setValue("CurrentDirectory", targetDirectory.getText());
+		propertiesFile->setValue("NumHistory",		 String(numHistorySize));
+
+		String historyStr;
+		directoryHistory.removeEmptyStrings();
+		directoryHistory.removeDuplicates(false);
+		for(const auto& str : directoryHistory){
+			historyStr += str + ";";
+		}
+		propertiesFile->setValue("DirectoryHistory", historyStr);
+
+		propertiesFile->setValue("LoopState",		 String(this->loopButton.getCurrentState()));
+		propertiesFile->save();
+	}
+
+	void loadProperties()
+	{
+		auto dir = propertiesFile->getValue("CurrentDirectory", File::getSpecialLocation(File::userDocumentsDirectory).getFullPathName());
+		setDirectory(dir);
+
+		auto numHistory = propertiesFile->getValue("NumHistory", "16");
+		numHistorySize = numHistory.getIntValue();
+
+		auto str = propertiesFile->getValue("DirectoryHistory", "");
+		directoryHistory.addTokens(str, ";", "");
+		directoryHistory.removeEmptyStrings();
+		directoryHistory.removeDuplicates(false);
+		
+		auto loopStateStr = propertiesFile->getValue("LoopState", "0");
+		this->loopButton.setCurrentState(loopStateStr.getIntValue());
+
+		resumeSaveProperty();
+	}
+
+	bool isSuspendSaveProperty;
+	void suspendSaveProperty() { isSuspendSaveProperty = true; }
+	void resumeSaveProperty()  { isSuspendSaveProperty = false; }
 
 	//==============================================================================
 	void setDirectory(const File& dir)
@@ -323,6 +406,12 @@ private:
 		}
 		directoryList.setDirectory(dir, true, true);
 		targetDirectory.setText(directoryList.getDirectory().getFullPathName());
+		directoryHistory.add(path);
+		if(numHistorySize <= directoryHistory.size()){
+			directoryHistory.remove(0);
+		}
+
+		saveProperties();
 		audioFileList.clear();
 	}
 
@@ -358,28 +447,6 @@ private:
 		}
 
 		return false;
-	}
-
-	void play()
-	{
-		transportSource.start();
-		playButton.setVisible(false);
-		pauseButton.setVisible(true);
-	}
-
-	void pause()
-	{
-		transportSource.stop();
-		pauseButton.setVisible(false);
-		playButton.setVisible(true);
-	}
-
-	void stop()
-	{
-		transportSource.setPosition(0);
-		transportSource.stop();
-		pauseButton.setVisible(false);
-		playButton.setVisible(true);
 	}
 
 	void MoveToNextAudio()
@@ -463,11 +530,7 @@ private:
 		}
 	}
 
-	void sliderValueChanged(Slider* slider) override
-	{
-		transportSource.setGain(static_cast<float>(slider->getValue()));
-	}
-
+	//=====================================================================================
 	void fileClicked(const File&, const MouseEvent&) override
 	{}
 
@@ -476,6 +539,46 @@ private:
 		if(file.isDirectory()) {
 			setDirectory(file);
 		}
+	}
+
+	void filesDropped(const StringArray& files, int /*x*/, int /*y*/) override
+	{
+		auto file = File(files[0]);
+		if(file.isDirectory()) {
+			setDirectory(file);
+		}
+		else {
+			setDirectory(file.getParentDirectory());
+			showAudioResource(URL(file));
+		}
+	}
+
+	//=====================================================================================
+	void play()
+	{
+		transportSource.start();
+		playButton.setVisible(false);
+		pauseButton.setVisible(true);
+	}
+
+	void pause()
+	{
+		transportSource.stop();
+		pauseButton.setVisible(false);
+		playButton.setVisible(true);
+	}
+
+	void stop()
+	{
+		transportSource.setPosition(0);
+		transportSource.stop();
+		pauseButton.setVisible(false);
+		playButton.setVisible(true);
+	}
+
+	void sliderValueChanged(Slider* slider) override
+	{
+		transportSource.setGain(static_cast<float>(slider->getValue()));
 	}
 
 	void browserRootChanged(const File&) override {}
@@ -514,18 +617,6 @@ private:
 	bool isInterestedInFileDrag(const StringArray&) override
 	{
 		return true;
-	}
-
-	void filesDropped(const StringArray& files, int /*x*/, int /*y*/) override
-	{
-		auto file = File(files[0]);
-		if(file.isDirectory()) {
-			setDirectory(file);
-		}
-		else {
-			setDirectory(file.getParentDirectory());
-			showAudioResource(URL(file));
-		}
 	}
 
 	JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(DrawUI)
