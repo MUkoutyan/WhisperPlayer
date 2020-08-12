@@ -12,11 +12,12 @@
 
 //==============================================================================
 class DrawUI : public Component,
-	public Slider::Listener,
-	public FileDragAndDropTarget,
-	public Timer,
-	private FileBrowserListener,
-	private ChangeListener
+			   public Slider::Listener,
+			   public FileDragAndDropTarget,
+			   public Timer,
+			   private FileBrowserListener,
+			   private ChangeListener,
+			   private KeyListener
 {
 	static constexpr int buttonSize = 32;
 	enum class LoopState : std::uint32_t
@@ -92,6 +93,8 @@ public:
 #endif
 		setupUIComponents();
 
+		addKeyListener(this);
+
 		//audioFileFilterはフォーマットを登録してから作成する。
 		formatManager.registerBasicFormats();
 		audioFileFilter.reset(new AudioFileFilter(formatManager.getWildcardForAllFormats()));
@@ -126,13 +129,7 @@ public:
 		};
 
 		AddButton(moveUpFolder, BinaryData::folderuploadfill_png, BinaryData::folderuploadfill_pngSize);
-		moveUpFolder.onClick = [this]() {
-			auto currentFile = File(this->targetDirectory.getText());
-			auto parentDir = currentFile.getParentDirectory();
-			if(parentDir.exists() && parentDir.isDirectory()) {
-				setDirectory(parentDir);
-			}
-		};
+		moveUpFolder.onClick = std::bind(&DrawUI::moveParentDirectory, this);
 
 		addAndMakeVisible(targetDirectory);
 		targetDirectory.onReturnKey = [this]() {
@@ -397,6 +394,15 @@ private:
 	void resumeSaveProperty()  { isSuspendSaveProperty = false; }
 
 	//==============================================================================
+	void moveParentDirectory()
+	{
+		auto currentFile = File(this->targetDirectory.getText());
+		auto parentDir = currentFile.getParentDirectory();
+		if(parentDir.exists() && parentDir.isDirectory()) {
+			setDirectory(parentDir);
+		}
+	}
+
 	void setDirectory(const File& dir)
 	{
 		auto path = dir.getFullPathName();
@@ -418,47 +424,43 @@ private:
 	void showAudioResource(URL resource)
 	{
 		if(loadURLIntoTransport(resource)){
+			updateAudioFileList();
 			currentAudioFile = std::move(resource);
+			thumbnail->setURL(currentAudioFile);
 		}
-
-		thumbnail->setURL(currentAudioFile);
 	}
 
 	bool loadURLIntoTransport(const URL& audioURL)
 	{
+		AudioFormatReader* reader = formatManager.createReaderFor(audioURL.createInputStream(false));
+		if(reader == nullptr){ return false; }
+
 		const bool isPlaying = transportSource.isPlaying();
 		stop();
-		transportSource.setSource(nullptr);
-		currentAudioFileSource.reset();
+		transportSource.setSource(nullptr);	//必須。入れないとファイル切替時にクラッシュする。
+		currentAudioFileSource.reset(new AudioFormatReaderSource(reader, true));
 
-		if(AudioFormatReader* reader = formatManager.createReaderFor(audioURL.createInputStream(false)))
-		{
-			currentAudioFileSource.reset(new AudioFormatReaderSource(reader, true));
+		isSwapLR.setEnabled(reader->numChannels >= 2);
+		transportSource.setSource(currentAudioFileSource.get(),
+								  32768,                   // tells it to buffer this many samples ahead
+								  &thread,                 // this is the background thread to use for reading-ahead
+								  reader->sampleRate);     // allows for sample rate correction
 
-			isSwapLR.setEnabled(reader->numChannels >= 2);
-			transportSource.setSource(currentAudioFileSource.get(),
-									  32768,                   // tells it to buffer this many samples ahead
-									  &thread,                 // this is the background thread to use for reading-ahead
-									  reader->sampleRate);     // allows for sample rate correction
+		if(isPlaying) { play(); }
 
-			if(isPlaying) { play(); }
-
-			return true;
-		}
-
-		return false;
+		return true;
 	}
 
 	void MoveToNextAudio()
 	{
-		updateAudioFileList();
+		//updateAudioFileList();
 		const int startFileIndex = jmax(0, currentAudioFileIndex);
 		const auto size = audioFileList.size();
 		if(size == 0) { return; }
 		while(true)
 		{
 			currentAudioFileIndex++;
-			if(size < currentAudioFileIndex) {
+			if(size <= currentAudioFileIndex) {
 				currentAudioFileIndex = 0;
 			}
 			const auto& file = audioFileList[currentAudioFileIndex].getLocalFile();
@@ -479,7 +481,7 @@ private:
 			transportSource.setPosition(0.0);
 			return;
 		}
-		updateAudioFileList();
+		//updateAudioFileList();
 		const int startFileIndex = jmax(0, currentAudioFileIndex);
 		if(audioFileList.isEmpty()) { return; }
 		while(true)
@@ -501,8 +503,6 @@ private:
 
 	void selectionChanged() override
 	{
-		updateAudioFileList();
-
 		auto url = URL(fileTreeComp.getSelectedFile());
 		currentAudioFileIndex = -1;
 		const auto size = audioFileList.size();
@@ -601,7 +601,7 @@ private:
 		switch(state)
 		{
 			case LoopState::None:
-				//何もしない
+				stop();
 				break;
 			case LoopState::One:
 				transportSource.setPosition(0);
@@ -617,6 +617,28 @@ private:
 	bool isInterestedInFileDrag(const StringArray&) override
 	{
 		return true;
+	}
+
+	bool keyPressed(const KeyPress& key, Component* originatingComponent) override
+	{
+		const auto keyCode    = key.getKeyCode();
+		const auto modifyCode = key.getModifiers();
+		if(keyCode == KeyPress::spaceKey)
+		{
+			if(transportSource.isPlaying()){
+				pause();
+			}
+			else{
+				play();
+			}
+			return true;
+		}
+		else if(keyCode == KeyPress::leftKey && modifyCode == ModifierKeys::ctrlModifier)
+		{
+			moveParentDirectory();
+		}
+
+		return false;
 	}
 
 	JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(DrawUI)
